@@ -1,0 +1,16 @@
+[
+  {
+    "id": "song-001",
+    "title": "示例歌曲一",
+    "artist": "Demo Artist",
+    "audioUrl": "/media/audio/song-001.mp3",
+    "lyricUrl": "/media/lyrics/song-001.lrc"
+  },
+  {
+    "id": "song-002",
+    "title": "示例歌曲二",
+    "artist": "Demo Artist",
+    "audioUrl": "/media/audio/song-002.mp3",
+    "lyricUrl": "/media/lyrics/song-002.lrc"
+  }
+]
