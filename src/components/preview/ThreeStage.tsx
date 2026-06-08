@@ -6,9 +6,11 @@ import { BackgroundEffects } from './BackgroundEffects';
 import { LyricScene } from './LyricScene';
 import { Effects } from './Effects';
 import { usePlayerStore } from '../../store/playerStore';
+import { useI18n } from '../../i18n/useI18n';
 
 function WelcomeOverlay() {
   const selectedTrackId = usePlayerStore((s) => s.selectedTrackId);
+  const { t } = useI18n();
 
   if (selectedTrackId) return null;
 
@@ -21,7 +23,7 @@ function WelcomeOverlay() {
         anchorX="center"
         anchorY="middle"
       >
-        选择音乐文件夹开始播放
+        {t('overlay.welcome')}
       </Text>
     </group>
   );
@@ -30,6 +32,7 @@ function WelcomeOverlay() {
 function NoLyricsOverlay() {
   const lyrics = usePlayerStore((s) => s.lyrics);
   const selectedTrackId = usePlayerStore((s) => s.selectedTrackId);
+  const { t } = useI18n();
 
   if (!selectedTrackId || lyrics.length > 0) return null;
 
@@ -42,7 +45,7 @@ function NoLyricsOverlay() {
         anchorX="center"
         anchorY="middle"
       >
-        无歌词文件
+        {t('overlay.noLyrics')}
       </Text>
     </group>
   );

@@ -1,4 +1,5 @@
 import { usePlayerStore } from '../store/playerStore';
+import { useI18n } from '../i18n/useI18n';
 import { Repeat, Repeat1, Play, Pause } from 'lucide-react';
 import type { RepeatMode } from '../types';
 
@@ -20,9 +21,16 @@ const repeatNext: Record<RepeatMode, RepeatMode> = {
   one: 'none',
 };
 
+const repeatTitleKey: Record<RepeatMode, string> = {
+  none: 'player.repeatOff',
+  all: 'player.repeatAll',
+  one: 'player.repeatOne',
+};
+
 export function PlayerControls({ onPlay, onPause, onSeek }: PlayerControlsProps) {
   const { isPlaying, currentTime, duration, selectedTrackId, repeatMode, setRepeatMode } =
     usePlayerStore();
+  const { t } = useI18n();
 
   const formatTime = (t: number) => {
     const m = Math.floor(t / 60);
@@ -42,13 +50,7 @@ export function PlayerControls({ onPlay, onPause, onSeek }: PlayerControlsProps)
             ? 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/20'
             : 'text-gray-600 hover:text-gray-400 hover:bg-gray-800'
         }`}
-        title={
-          repeatMode === 'none'
-            ? '列表循环'
-            : repeatMode === 'all'
-              ? '单曲循环'
-              : '关闭循环'
-        }
+        title={t(repeatTitleKey[repeatMode])}
       >
         <RepeatIcon className="w-4 h-4" />
       </button>
@@ -60,6 +62,7 @@ export function PlayerControls({ onPlay, onPause, onSeek }: PlayerControlsProps)
             : 'bg-gray-800 text-gray-600 cursor-not-allowed'
         }`}
         disabled={!canPlay}
+        title={isPlaying ? t('player.pause') : t('player.play')}
         onClick={() => {
           if (!canPlay) return;
           if (isPlaying) onPause();

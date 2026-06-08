@@ -7,6 +7,7 @@ import { useAudioAnalyser } from './hooks/useAudioAnalyser';
 import { useLyricSync } from './hooks/useLyricSync';
 import { usePlayerStore } from './store/playerStore';
 import { computeEnergy } from './lib/audioEnergy';
+import { ChevronRight } from 'lucide-react';
 
 const CONTROLS_HIDE_DELAY = 5000;
 
@@ -109,16 +110,18 @@ function App() {
   };
 
   return (
-    <div ref={containerRef} className="h-screen w-screen bg-black flex">
-      {panelOpen && <ControlPanel audio={audio} />}
+    <div ref={containerRef} className="h-screen w-screen bg-black flex overflow-hidden">
+      <div className={`shrink-0 overflow-hidden transition-[width] duration-300 ${panelOpen ? 'w-72' : 'w-0'}`}>
+        <div className="w-72 h-full">
+          <ControlPanel audio={audio} />
+        </div>
+      </div>
       {!panelOpen && (
         <button
           onClick={togglePanel}
           className="fixed left-0 top-1/2 -translate-y-1/2 z-10 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-r-lg px-1.5 py-6 border border-gray-800 border-l-0"
         >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight className="w-4 h-4" />
         </button>
       )}
       <div className="flex-1 flex flex-col relative">

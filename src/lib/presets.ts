@@ -1,6 +1,6 @@
-import type { LyricColorTheme, BackgroundEffectPreset, LyricColorPreset } from '../types';
+import type { LyricColorTheme } from '../types';
 
-export const lyricColorThemes: Record<LyricColorPreset, LyricColorTheme> = {
+export const lyricColorThemes: Record<string, LyricColorTheme> = {
   iceBlue: {
     activeColor: '#ffffff',
     nearColor: '#dbeafe',
@@ -43,22 +43,4 @@ export const lyricColorThemes: Record<LyricColorPreset, LyricColorTheme> = {
     glowColor: '#a78bfa',
     secondaryGlowColor: '#ec4899',
   },
-};
-
-export const backgroundEffectLabels: Record<BackgroundEffectPreset, string> = {
-  starDust: '星尘漂浮',
-  snowFall: '慢速雪点',
-  blueRain: '蓝色光雨',
-  nebulaFlow: '星云流动',
-  lightTunnel: '光隧道',
-  calmGlow: '柔和呼吸光',
-};
-
-export const lyricColorLabels: Record<LyricColorPreset, string> = {
-  iceBlue: '冰蓝',
-  warmWhite: '暖白',
-  neonPink: '霓虹粉',
-  goldenDream: '金色梦',
-  mintGreen: '薄荷绿',
-  purpleGalaxy: '紫银河',
 };

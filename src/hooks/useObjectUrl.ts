@@ -12,8 +12,10 @@ export function useObjectUrl() {
     return url;
   }, []);
 
-  const revokeUrl = useCallback(() => {
-    if (urlRef.current) {
+  const revokeUrl = useCallback((url?: string) => {
+    if (url) {
+      URL.revokeObjectURL(url);
+    } else if (urlRef.current) {
       URL.revokeObjectURL(urlRef.current);
       urlRef.current = null;
     }

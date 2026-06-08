@@ -2,22 +2,16 @@ import { useRef, useState, useEffect } from 'react';
 import { usePlayerStore } from '../store/playerStore';
 import { useMusicFolder } from '../hooks/useMusicFolder';
 import { loadTrackById } from '../lib/loadTrack';
+import { useI18n } from '../i18n/useI18n';
 import type { ScannedTrack } from '../types';
-import { FolderOpen, Music, FileAudio, AlertTriangle } from 'lucide-react';
+import { FolderOpen, Music, FileAudio } from 'lucide-react';
 
 type SongSelectorProps = {
   audio: HTMLAudioElement;
 };
 
-const errorMessages: Record<string, string> = {
-  unsupported: '当前浏览器不支持选择文件夹。请使用 Chrome 或 Edge 最新版本。',
-  aborted: '',
-  permission: '无法访问文件夹权限，请在浏览器设置中允许文件访问。',
-  unknown: '选择文件夹时发生错误，请查看控制台。',
-};
-
 export function SongSelector({ audio }: SongSelectorProps) {
-  const { tracks, folderName, error, pickFolder } = useMusicFolder();
+  const { tracks, folderName, pickFolder } = useMusicFolder();
   const {
     selectedTrackId,
     selectTrack,
@@ -26,6 +20,7 @@ export function SongSelector({ audio }: SongSelectorProps) {
     setIsPlaying,
     setTracks,
   } = usePlayerStore();
+  const { t } = useI18n();
 
   const blobUrlRef = useRef<string | null>(null);
   const [loadingTrack, setLoadingTrack] = useState(false);
@@ -54,8 +49,6 @@ export function SongSelector({ audio }: SongSelectorProps) {
     }
   };
 
-  const errMsg = error ? errorMessages[error] : null;
-
   return (
     <div>
       <button
@@ -63,27 +56,26 @@ export function SongSelector({ audio }: SongSelectorProps) {
         className="w-full flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white rounded px-3 py-2.5 text-sm font-medium transition"
       >
         <FolderOpen className="w-4 h-4" />
-        {folderName ? `更换文件夹` : `选择音乐文件夹`}
+        {folderName ? t('songSelector.changeFolder') : t('songSelector.selectFolder')}
       </button>
 
       {folderName && (
         <p className="text-xs text-gray-400 mt-1 truncate">
-          已选择: {folderName}
+          {t('songSelector.folderSelected', { name: folderName })}
         </p>
       )}
 
-      {errMsg && (
-        <div className="mt-2 flex items-start gap-1.5 text-xs text-yellow-400 bg-yellow-400/5 border border-yellow-400/20 rounded px-2 py-1.5">
-          <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
-          <span>{errMsg}</span>
-        </div>
+      {tracks.length === 0 && (
+        <p className="text-xs text-yellow-400/70 mt-1">
+          {t('errors.unsupportedBrowser')}
+        </p>
       )}
 
       {tracks.length > 0 && (
         <div className="mt-3">
           <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1.5">
             <FileAudio className="w-3.5 h-3.5" />
-            <span>{tracks.length} 首歌曲</span>
+            <span>{t('songSelector.songsCount', { n: tracks.length })}</span>
           </div>
           <div className="max-h-48 overflow-y-auto space-y-0.5">
             {tracks.map((track) => (

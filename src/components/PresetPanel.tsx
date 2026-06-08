@@ -1,10 +1,13 @@
 import { usePlayerStore } from '../store/playerStore';
-import { backgroundEffectLabels, lyricColorLabels } from '../lib/presets';
+import { useI18n } from '../i18n/useI18n';
+import { getEffectLabel, getColorLabel } from '../i18n/messages';
 import type { BackgroundEffectPreset, LyricColorPreset } from '../types';
 
 export function PresetPanel() {
   const settings = usePlayerStore((s) => s.settings);
   const updateSettings = usePlayerStore((s) => s.updateSettings);
+  const locale = usePlayerStore((s) => s.locale);
+  const { t } = useI18n();
 
   const effectPresets: BackgroundEffectPreset[] = [
     'starDust', 'snowFall', 'blueRain', 'nebulaFlow', 'lightTunnel', 'calmGlow',
@@ -17,7 +20,7 @@ export function PresetPanel() {
   return (
     <div className="space-y-4">
       <div>
-        <label className="block text-sm text-gray-400 mb-1.5">背景特效</label>
+        <label className="block text-sm text-gray-400 mb-1.5">{t('effects.title')}</label>
         <div className="grid grid-cols-2 gap-1.5">
           {effectPresets.map((preset) => (
             <button
@@ -29,14 +32,14 @@ export function PresetPanel() {
               }`}
               onClick={() => updateSettings({ backgroundEffectPreset: preset })}
             >
-              {backgroundEffectLabels[preset]}
+              {getEffectLabel(preset, locale)}
             </button>
           ))}
         </div>
       </div>
 
       <div>
-        <label className="block text-sm text-gray-400 mb-1.5">歌词颜色</label>
+        <label className="block text-sm text-gray-400 mb-1.5">{t('colors.title')}</label>
         <div className="grid grid-cols-2 gap-1.5">
           {colorPresets.map((preset) => (
             <button
@@ -48,7 +51,7 @@ export function PresetPanel() {
               }`}
               onClick={() => updateSettings({ lyricColorPreset: preset })}
             >
-              {lyricColorLabels[preset]}
+              {getColorLabel(preset, locale)}
             </button>
           ))}
         </div>

@@ -42,6 +42,17 @@ export type LyricColorTheme = {
   secondaryGlowColor: string;
 };
 
+export type ImageAlphaMode = 'none' | 'rightFade' | 'edgeFade';
+
+export type TransitionMode = 'cut' | 'crossfade' | 'slide' | 'rotate';
+
+export type BackgroundImageItem = {
+  id: string;
+  name: string;
+  url: string;
+  fileType: string;
+};
+
 export type VisualSettings = {
   fontSize: number;
   lineGap: number;
@@ -67,15 +78,23 @@ export type VisualSettings = {
   lyricBold: boolean;
   imageFadeStart: number;
   imageFadeEnd: number;
+  imageAlphaMode: ImageAlphaMode;
+  transitionMode: TransitionMode;
+  cycleEnabled: boolean;
+  cycleInterval: number;
 };
 
 export type RepeatMode = 'none' | 'all' | 'one';
+
+export type Locale = 'zh-CN' | 'en-US';
 
 export type PlayerState = {
   folderName: string | null;
   selectedTrackId: string | null;
   tracks: ScannedTrack[];
   lyrics: LyricLine[];
+  backgroundImages: BackgroundImageItem[];
+  activeBackgroundImageId: string | null;
   backgroundImageUrl: string | null;
   activeIndex: number;
   currentTime: number;
@@ -86,4 +105,5 @@ export type PlayerState = {
   settings: VisualSettings;
   performanceMode: boolean;
   panelOpen: boolean;
+  locale: Locale;
 };

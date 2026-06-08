@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { PlayerState, VisualSettings, LyricLine, AudioEnergy, ScannedTrack, RepeatMode } from '../types';
+import type { PlayerState, VisualSettings, LyricLine, AudioEnergy, ScannedTrack, RepeatMode, Locale, BackgroundImageItem } from '../types';
 
 export const qualitySettings: VisualSettings = {
   fontSize: 0.23,
@@ -27,6 +27,10 @@ export const qualitySettings: VisualSettings = {
   lyricBold: false,
   imageFadeStart: 0.7,
   imageFadeEnd: 0.95,
+  imageAlphaMode: 'rightFade',
+  transitionMode: 'crossfade',
+  cycleEnabled: false,
+  cycleInterval: 8,
 };
 
 export const performanceSettings: VisualSettings = {
@@ -44,6 +48,10 @@ type StoreActions = {
   setTracks: (tracks: ScannedTrack[]) => void;
   setLyrics: (lyrics: LyricLine[]) => void;
   setBackgroundImageUrl: (url: string | null) => void;
+  addBackgroundImage: (item: BackgroundImageItem) => void;
+  removeBackgroundImage: (id: string) => void;
+  clearBackgroundImages: () => void;
+  setActiveBackgroundImageId: (id: string | null) => void;
   setActiveIndex: (index: number) => void;
   setCurrentTime: (time: number) => void;
   setDuration: (duration: number) => void;
@@ -53,12 +61,14 @@ type StoreActions = {
   updateSettings: (partial: Partial<VisualSettings>) => void;
   togglePerformanceMode: () => void;
   togglePanel: () => void;
+  setLocale: (locale: Locale) => void;
 };
 
-type PersistedSlice = {
+type PersistedSettings = {
   settings: VisualSettings;
   performanceMode: boolean;
   panelOpen: boolean;
+  locale: Locale;
 };
 
 function clampSettings(s: Partial<VisualSettings>): Partial<VisualSettings> {
@@ -85,6 +95,7 @@ function clampSettings(s: Partial<VisualSettings>): Partial<VisualSettings> {
     lyricBrightness: [0.3, 2.5],
     imageFadeStart: [0.3, 1],
     imageFadeEnd: [0.5, 1],
+    cycleInterval: [3, 60],
   };
   for (const [key, [min, max]] of Object.entries(range)) {
     const val = (s as Record<string, unknown>)[key];
@@ -93,6 +104,13 @@ function clampSettings(s: Partial<VisualSettings>): Partial<VisualSettings> {
     }
   }
   return clamped as Partial<VisualSettings>;
+}
+
+function detectLocale(): Locale {
+  if (typeof navigator !== 'undefined' && navigator.language.startsWith('zh')) {
+    return 'zh-CN';
+  }
+  return 'en-US';
 }
 
 const storageKey = 'i-3d-music-player:visual-settings';
@@ -104,6 +122,8 @@ export const usePlayerStore = create<PlayerState & StoreActions>()(
       selectedTrackId: null,
       tracks: [],
       lyrics: [],
+      backgroundImages: [],
+      activeBackgroundImageId: null,
       backgroundImageUrl: null,
       activeIndex: -1,
       currentTime: 0,
@@ -114,12 +134,37 @@ export const usePlayerStore = create<PlayerState & StoreActions>()(
       settings: { ...performanceSettings },
       performanceMode: true,
       panelOpen: true,
+      locale: detectLocale(),
 
       setFolderName: (folderName) => set({ folderName }),
       selectTrack: (selectedTrackId) => set({ selectedTrackId }),
       setTracks: (tracks) => set({ tracks }),
       setLyrics: (lyrics) => set({ lyrics }),
       setBackgroundImageUrl: (backgroundImageUrl) => set({ backgroundImageUrl }),
+      addBackgroundImage: (item) =>
+        set((state) => ({
+          backgroundImages: [...state.backgroundImages, item],
+          activeBackgroundImageId: state.activeBackgroundImageId ?? item.id,
+          backgroundImageUrl: state.backgroundImageUrl ?? item.url,
+        })),
+      removeBackgroundImage: (id) =>
+        set((state) => {
+          const images = state.backgroundImages.filter((i) => i.id !== id);
+          const isActive = state.activeBackgroundImageId === id;
+          const newActiveId = isActive ? (images[images.length - 1]?.id ?? null) : state.activeBackgroundImageId;
+          const newUrl = newActiveId ? images.find((i) => i.id === newActiveId)?.url ?? null : null;
+          return {
+            backgroundImages: images,
+            activeBackgroundImageId: newActiveId,
+            backgroundImageUrl: newUrl,
+          };
+        }),
+      clearBackgroundImages: () => set({ backgroundImages: [], activeBackgroundImageId: null, backgroundImageUrl: null }),
+      setActiveBackgroundImageId: (id) =>
+        set((state) => ({
+          activeBackgroundImageId: id,
+          backgroundImageUrl: state.backgroundImages.find((i) => i.id === id)?.url ?? null,
+        })),
       setActiveIndex: (activeIndex) => set({ activeIndex }),
       setCurrentTime: (currentTime) => set({ currentTime }),
       setDuration: (duration) => set({ duration }),
@@ -134,6 +179,7 @@ export const usePlayerStore = create<PlayerState & StoreActions>()(
           settings: state.performanceMode ? { ...qualitySettings } : { ...performanceSettings },
         })),
       togglePanel: () => set((state) => ({ panelOpen: !state.panelOpen })),
+      setLocale: (locale) => set({ locale }),
     }),
     {
       name: storageKey,
@@ -142,10 +188,11 @@ export const usePlayerStore = create<PlayerState & StoreActions>()(
         settings: state.settings,
         performanceMode: state.performanceMode,
         panelOpen: state.panelOpen,
+        locale: state.locale,
       }),
       merge: (persisted, current): PlayerState & StoreActions => {
         try {
-          const p = persisted as Partial<PersistedSlice> | null;
+          const p = persisted as Partial<PersistedSettings> | null;
           if (!p || typeof p !== 'object' || !p.settings) return current;
 
           const baseSettings = p.performanceMode
@@ -159,6 +206,7 @@ export const usePlayerStore = create<PlayerState & StoreActions>()(
             settings: mergedSettings,
             performanceMode: p.performanceMode ?? current.performanceMode,
             panelOpen: p.panelOpen ?? current.panelOpen,
+            locale: p.locale ?? current.locale,
           };
         } catch {
           return current;
