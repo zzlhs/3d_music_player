@@ -7,7 +7,7 @@ import { useAudioAnalyser } from './hooks/useAudioAnalyser';
 import { useLyricSync } from './hooks/useLyricSync';
 import { usePlayerStore } from './store/playerStore';
 import { computeEnergy } from './lib/audioEnergy';
-import { ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 const CONTROLS_HIDE_DELAY = 5000;
 
@@ -110,36 +110,43 @@ function App() {
   };
 
   return (
-    <div ref={containerRef} className="h-screen w-screen bg-black flex overflow-hidden">
-      <div className={`shrink-0 overflow-hidden transition-[width] duration-300 ${panelOpen ? 'w-72' : 'w-0'}`}>
-        <div className="w-72 h-full">
-          <ControlPanel audio={audio} />
-        </div>
+    <div ref={containerRef} className="h-screen w-screen bg-black overflow-hidden relative">
+      {/* ThreeStage: always full viewport */}
+      <div className="absolute inset-0">
+        <ThreeStage />
       </div>
-      {!panelOpen && (
-        <button
-          onClick={togglePanel}
-          className="fixed left-0 top-1/2 -translate-y-1/2 z-10 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-r-lg px-1.5 py-6 border border-gray-800 border-l-0"
-        >
-          <ChevronRight className="w-4 h-4" />
-        </button>
-      )}
-      <div className="flex-1 flex flex-col relative">
-        <div className="flex-1">
-          <ThreeStage />
-        </div>
-        <div
-          className={`absolute bottom-0 left-0 right-0 flex justify-center transition-all duration-500 ${
-            controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
-          }`}
-        >
-          <div className="w-full max-w-[800px] px-4 pb-4">
-            <PlayerControls
-              onPlay={handlePlay}
-              onPause={handlePause}
-              onSeek={handleSeek}
-            />
-          </div>
+
+      {/* Control panel: overlay on the left */}
+      <aside
+        className={`absolute left-0 top-0 h-full z-20 transition-transform duration-300 ease-in-out ${
+          panelOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+      >
+        <ControlPanel audio={audio} />
+      </aside>
+
+      {/* Toggle button: always visible */}
+      <button
+        onClick={togglePanel}
+        className={`absolute top-1/2 -translate-y-1/2 z-30 bg-gray-900 hover:bg-gray-800 text-gray-400 rounded-r-lg px-1.5 py-6 border border-gray-800 border-l-0 transition-all duration-300 ${
+          panelOpen ? 'left-[288px]' : 'left-0'
+        }`}
+      >
+        {panelOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+      </button>
+
+      {/* Player controls: overlay at the bottom */}
+      <div
+        className={`absolute bottom-0 left-0 right-0 flex justify-center z-10 transition-all duration-500 ${
+          controlsVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4 pointer-events-none'
+        }`}
+      >
+        <div className="w-full max-w-[800px] px-4 pb-4">
+          <PlayerControls
+            onPlay={handlePlay}
+            onPause={handlePause}
+            onSeek={handleSeek}
+          />
         </div>
       </div>
     </div>

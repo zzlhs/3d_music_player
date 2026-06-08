@@ -73,8 +73,8 @@ export function ControlPanel({ audio }: ControlPanelProps) {
   const upd = <K extends keyof VisualSettings>(k: K, v: VisualSettings[K]) => updateSettings({ [k]: v });
 
   return (
-    <div className="w-72 bg-gray-950 border-r border-gray-800 flex flex-col shrink-0">
-      <div className="flex items-center justify-between p-3 border-b border-gray-800">
+    <div className="w-72 h-full min-h-0 bg-gray-950/95 backdrop-blur-sm border-r border-gray-800 flex flex-col shrink-0">
+      <div className="flex items-center justify-between p-3 border-b border-gray-800 shrink-0">
         <h2 className="text-sm font-semibold text-gray-200">{t('controlPanel.title')}</h2>
         <button
           onClick={togglePanel}
@@ -84,7 +84,7 @@ export function ControlPanel({ audio }: ControlPanelProps) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-3 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 space-y-4 min-h-0">
         <div className="flex items-center justify-between">
           <div className="flex gap-2">
             <button
