@@ -1,8 +1,17 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useRef, useEffect, useCallback } from 'react';
 import { useTexture } from '@react-three/drei';
-import { useThree } from '@react-three/fiber';
+import { useThree, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { usePlayerStore } from '../../store/playerStore';
+
+const FALLBACK_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
+const TRANSITION_DURATION: Record<string, number> = {
+  cut: 0.3,
+  crossfade: 1.2,
+  slide: 1.0,
+  rotate: 1.0,
+};
 
 function ImageMesh({ url, nextUrl, transitionMode, cycleNext }: {
   url: string;
@@ -11,151 +20,180 @@ function ImageMesh({ url, nextUrl, transitionMode, cycleNext }: {
   cycleNext: () => void;
 }) {
   const texture = useTexture(url);
-  const nextTexture = useTexture(nextUrl ?? '');
+  const nextTexture = useTexture(nextUrl ?? FALLBACK_DATA_URL);
+  const meshRef = useRef<THREE.Mesh>(null);
+  const transitionRef = useRef<{ active: boolean; progress: number; finish: boolean }>({
+    active: false,
+    progress: 0,
+    finish: false,
+  });
+  const prevUrl = useRef<string>(url);
+
+  // Detect when URL changes (transition triggered externally)
+  useEffect(() => {
+    if (nextUrl && prevUrl.current !== nextUrl) {
+      transitionRef.current = { active: true, progress: 0, finish: false };
+    }
+    prevUrl.current = url;
+  }, [nextUrl, url]);
+
   const viewport = useThree((state) => state.viewport);
+  const fps = usePlayerStore((s) => s.performanceMode ? 2 : 1);
+
+  const uniformsRef = useRef({
+    uTexture: { value: texture },
+    uNextTexture: { value: nextTexture },
+    uTransition: { value: 0 },
+    uBrightness: { value: 1 },
+    uFadeStart: { value: 0.7 },
+    uFadeEnd: { value: 0.95 },
+    uAlphaMode: { value: 1 },
+    uViewport: { value: new THREE.Vector2(viewport.width, viewport.height) },
+  });
+  const uniforms = uniformsRef.current;
+
+  // Keep uniforms in sync
   const brightness = usePlayerStore((s) => s.settings.backgroundBrightness);
   const fadeStart = usePlayerStore((s) => s.settings.imageFadeStart);
   const fadeEnd = usePlayerStore((s) => s.settings.imageFadeEnd);
   const alphaMode = usePlayerStore((s) => s.settings.imageAlphaMode);
 
-  const material = useMemo(() => {
-    const img = texture.image as HTMLImageElement | null;
-    const nextImg = nextTexture?.image as HTMLImageElement | null;
-    const texAspect = img ? img.width / img.height : 1;
-    const nextAspect = nextImg ? nextImg.width / nextImg.height : texAspect;
-    const planeAspect = viewport.width / viewport.height;
+  uniforms.uTexture.value = texture;
+  uniforms.uNextTexture.value = nextTexture;
+  uniforms.uBrightness.value = brightness;
+  uniforms.uFadeStart.value = fadeStart;
+  uniforms.uFadeEnd.value = fadeEnd;
+  uniforms.uAlphaMode.value = alphaMode === 'none' ? 0 : alphaMode === 'rightFade' ? 1 : 2;
+  uniforms.uViewport.value.set(viewport.width, viewport.height);
 
-    return new THREE.ShaderMaterial({
-      transparent: true,
-      depthWrite: false,
-      toneMapped: false,
-      uniforms: {
-        uTexture: { value: texture },
-        uNextTexture: { value: nextTexture },
-        uBrightness: { value: brightness },
-        uFadeStart: { value: fadeStart },
-        uFadeEnd: { value: fadeEnd },
-        uAlphaMode: { value: alphaMode === 'edgeFade' ? 1 : alphaMode === 'rightFade' ? 2 : 0 },
-        uTexAspect: { value: texAspect },
-        uNextAspect: { value: nextAspect },
-        uPlaneAspect: { value: planeAspect },
-        uProgress: { value: 0 },
-        uHasNext: { value: 0 },
-        uTransitionMode: { value: transitionMode === 'slide' ? 1 : transitionMode === 'rotate' ? 2 : 0 },
-      },
-      vertexShader: `
-        varying vec2 vUv;
-        void main() {
-          vUv = uv;
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-        }
-      `,
-      fragmentShader: `
-        uniform sampler2D uTexture;
-        uniform sampler2D uNextTexture;
-        uniform float uBrightness;
-        uniform float uFadeStart;
-        uniform float uFadeEnd;
-        uniform float uAlphaMode;
-        uniform float uTexAspect;
-        uniform float uNextAspect;
-        uniform float uPlaneAspect;
-        uniform float uProgress;
-        uniform float uHasNext;
-        uniform float uTransitionMode;
-        varying vec2 vUv;
+  // Animate transition
+  const frameSkip = useRef(0);
+  useFrame((_, delta) => {
+    const tr = transitionRef.current;
+    if (!tr.active) return;
 
-        vec2 cover(vec2 uv, float ta, float pa) {
-          vec2 r = uv;
-          if (ta > pa) { float s = ta / pa; r.x = (uv.x - 0.5) * s + 0.5; }
-          else         { float s = pa / ta; r.y = (uv.y - 0.5) * s + 0.5; }
-          return r;
-        }
+    frameSkip.current = (frameSkip.current + 1) % fps;
+    if (frameSkip.current !== 0) return;
 
-        float getAlpha(vec2 uv) {
-          if (uAlphaMode < 0.5) return 1.0;
-          if (uAlphaMode < 1.5) return 1.0 - smoothstep(uFadeStart, uFadeEnd, uv.x);
-          float l = smoothstep(0.0, 0.15, uv.x);
-          float r = 1.0 - smoothstep(0.85, 1.0, uv.x);
-          float t = smoothstep(0.0, 0.1, uv.y);
-          float b = 1.0 - smoothstep(0.9, 1.0, uv.y);
-          return min(min(l, r), min(t, b));
-        }
+    const dur = TRANSITION_DURATION[transitionMode] ?? 1.2;
+    tr.progress = Math.min(tr.progress + delta / dur, 1);
+    uniforms.uTransition.value = tr.progress;
 
-        void main() {
-          vec2 cuv = cover(vUv, uTexAspect, uPlaneAspect);
-          if (cuv.x < 0.0 || cuv.x > 1.0 || cuv.y < 0.0 || cuv.y > 1.0) discard;
-          vec4 cur = texture2D(uTexture, cuv);
-          float a = getAlpha(vUv);
-          vec4 col = vec4(cur.rgb * uBrightness, cur.a * a);
-
-          if (uHasNext > 0.5 && uProgress > 0.0) {
-            float p = uProgress;
-            vec2 nuv = cover(vUv, uNextAspect, uPlaneAspect);
-            vec4 nxt = texture2D(uNextTexture, nuv);
-            float na = getAlpha(vUv);
-
-            if (uTransitionMode < 0.5) {
-              col = mix(col, vec4(nxt.rgb * uBrightness, nxt.a * na), p);
-            } else if (uTransitionMode < 1.5) {
-              float offset = (1.0 - p) * 0.6;
-              vec2 suv = cover(vec2(vUv.x + offset, vUv.y), uNextAspect, uPlaneAspect);
-              vec4 sld = texture2D(uNextTexture, suv);
-              float sa = getAlpha(vec2(vUv.x + offset, vUv.y));
-              float mask = smoothstep(1.0 - p, 1.0, vUv.x);
-              col = mix(col, vec4(sld.rgb * uBrightness, sld.a * sa), mask);
-            } else {
-              float angle = p * 1.2;
-              vec2 c = vUv - 0.5;
-              float ca = cos(angle), sa = sin(angle);
-              vec2 ruv = cover(vec2(c.x*ca - c.y*sa, c.x*sa + c.y*ca) + 0.5, uNextAspect, uPlaneAspect);
-              vec4 rot = texture2D(uNextTexture, ruv);
-              float ra = getAlpha(vec2(0.5, 0.5));
-              float sc = 0.6 + 0.4 * p;
-              float sm = step(abs(vUv.x-0.5), sc/2.0) * step(abs(vUv.y-0.5), sc/2.0);
-              col = mix(col, vec4(rot.rgb * uBrightness, rot.a * ra), p * sm);
-            }
-          }
-          gl_FragColor = col;
-        }
-      `,
-    });
-  }, [texture, nextTexture, brightness, fadeStart, fadeEnd, alphaMode, transitionMode, viewport.width, viewport.height]);
-
-  useEffect(() => {
-    const mat = material;
-    mat.uniforms.uBrightness.value = brightness;
-    mat.uniforms.uFadeStart.value = fadeStart;
-    mat.uniforms.uFadeEnd.value = fadeEnd;
-    mat.uniforms.uAlphaMode.value = alphaMode === 'edgeFade' ? 1 : alphaMode === 'rightFade' ? 2 : 0;
-  }, [brightness, fadeStart, fadeEnd, alphaMode, material]);
-
-  useEffect(() => {
-    const mat = material;
-    if (nextUrl && nextTexture) {
-      mat.uniforms.uHasNext.value = 1;
-      mat.uniforms.uProgress.value = 0;
-      const start = performance.now();
-      const duration = 600;
-      let frame: number;
-      const tick = (now: number) => {
-        const t = Math.min(1, (now - start) / duration);
-        mat.uniforms.uProgress.value = t;
-        if (t >= 1) {
-          mat.uniforms.uHasNext.value = 0;
-          mat.uniforms.uProgress.value = 0;
-          cycleNext();
-        } else {
-          frame = requestAnimationFrame(tick);
-        }
-      };
-      frame = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(frame);
+    if (tr.progress >= 1 && !tr.finish) {
+      tr.finish = true;
+      cycleNext();
     }
-  }, [nextUrl, nextTexture, material, cycleNext]);
+  });
+
+  const getShader = useCallback((mode: string) => {
+    const alphaFunc = alphaMode === 'none'
+      ? `float _alpha = 1.0;`
+      : alphaMode === 'rightFade'
+        ? `float _alpha = smoothstep(uFadeEnd, uFadeStart, vUv.x);`
+        : `float _a1 = smoothstep(0.0, uFadeStart, vUv.x);
+           float _a2 = smoothstep(1.0, 1.0 - uFadeStart, vUv.x);
+           float _alpha = 1.0 - (1.0 - _a1 * _a2) * step(0.001, uFadeStart);`;
+
+    const transitionBlock = (() => {
+      switch (mode) {
+        case 'cut':
+          return `
+            vec4 finalColor = t < 1.0 ? currentColor : nextColor;
+            finalColor.a *= _alpha;
+          `;
+        case 'slide':
+          return `
+            vec2 slideUv = vUv;
+            slideUv.x = vUv.x - t * 0.5;
+            vec4 slideCurrent = texture2D(uTexture, clamp(slideUv, 0.0, 1.0)) * uBrightness;
+            vec4 slideNext = texture2D(uNextTexture, clamp(vUv + vec2(1.0 - t, 0.0) * 0.5, 0.0, 1.0)) * uBrightness;
+            vec4 finalColor = mix(slideCurrent, slideNext, t);
+            finalColor.a *= _alpha;
+          `;
+        case 'rotate':
+          return `
+            vec2 centered = vUv - 0.5;
+            float angle = t * 3.14159 * 0.5;
+            float ca = cos(angle);
+            float sa = sin(angle);
+            vec2 rotated = vec2(
+              centered.x * ca - centered.y * sa,
+              centered.x * sa + centered.y * ca
+            ) + 0.5;
+            vec4 rotColor = texture2D(uNextTexture, clamp(rotated, 0.0, 1.0)) * uBrightness;
+            vec4 finalColor = mix(currentColor, rotColor, t);
+            finalColor.a *= _alpha;
+          `;
+        default: // crossfade
+          return `
+            vec4 finalColor = mix(currentColor, nextColor, t);
+            finalColor.a *= _alpha;
+          `;
+      }
+    })();
+
+    return `
+      uniform sampler2D uTexture;
+      uniform sampler2D uNextTexture;
+      uniform float uTransition;
+      uniform float uBrightness;
+      uniform float uFadeStart;
+      uniform float uFadeEnd;
+      uniform int uAlphaMode;
+      uniform vec2 uViewport;
+      varying vec2 vUv;
+
+      void main() {
+        vec2 texSize = vec2(textureSize(uTexture, 0));
+        float scale = max(texSize.x / uViewport.x, texSize.y / uViewport.y);
+        vec2 texRatio = texSize / min(texSize.x, texSize.y);
+        vec2 vpRatio = uViewport / min(uViewport.x, uViewport.y);
+        vec2 mapped = vUv * (vpRatio / texRatio) + (1.0 - vpRatio / texRatio) * 0.5;
+        mapped = clamp(mapped, 0.0, 1.0);
+
+        vec4 currentColor = texture2D(uTexture, mapped) * uBrightness;
+        vec4 nextColor = texture2D(uNextTexture, mapped) * uBrightness;
+
+        float t = uTransition;
+
+        ${alphaFunc}
+
+        ${transitionBlock}
+
+        gl_FragColor = finalColor;
+      }
+    `;
+  }, [alphaMode]);
+
+  const materialRef = useRef(new THREE.ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.NormalBlending,
+    side: THREE.DoubleSide,
+    uniforms,
+    fragmentShader: getShader(transitionMode),
+    vertexShader: `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+  }));
+  const material = materialRef.current;
+
+  // Update fragment shader when transitionMode or alphaMode changes
+  useEffect(() => {
+    material.fragmentShader = getShader(transitionMode);
+    material.needsUpdate = true;
+  }, [transitionMode, alphaMode, getShader, material]);
+
+  const aspect = viewport.width / viewport.height;
+  const planeH = 8;
+  const planeW = planeH * aspect;
 
   return (
-    <mesh position={[0, 0, -1]} scale={[viewport.width, viewport.height, 1]}>
+    <mesh ref={meshRef} position={[-1.5, 0, -3]} scale={[planeW, planeH, 1]}>
       <planeGeometry args={[1, 1]} />
       <primitive object={material} />
     </mesh>
@@ -175,19 +213,15 @@ export function BackgroundImagePlane() {
   const active = backgroundImages.find((i) => i.id === activeBackgroundImageId);
   const next = nextIdRef.current ? backgroundImages.find((i) => i.id === nextIdRef.current) : null;
 
-  const cycleNext = () => {
-    const images = usePlayerStore.getState().backgroundImages;
-    const curId = usePlayerStore.getState().activeBackgroundImageId;
-    const curIdx = images.findIndex((i) => i.id === curId);
-    if (curIdx >= 0 && images.length > 1) {
-      const nextIdx = (curIdx + 1) % images.length;
-      const nextId = images[nextIdx].id;
-      nextIdRef.current = nextId;
+  const cycleNext = useCallback(() => {
+    const nextId = nextIdRef.current;
+    if (nextId) {
       setActiveBackgroundImageId(nextId);
+      nextIdRef.current = null;
     }
-    nextIdRef.current = null;
-  };
+  }, [setActiveBackgroundImageId]);
 
+  // Auto-cycle: prepare next image to trigger transition
   useEffect(() => {
     if (!cycleEnabled || backgroundImages.length < 2) return;
     const interval = setInterval(() => {
@@ -195,12 +229,19 @@ export function BackgroundImagePlane() {
       const curId = usePlayerStore.getState().activeBackgroundImageId;
       const curIdx = images.findIndex((i) => i.id === curId);
       if (curIdx >= 0 && images.length > 1) {
-        const nextIdx = (curIdx + 1) % images.length;
-        usePlayerStore.getState().setActiveBackgroundImageId(images[nextIdx].id);
+        const nIdx = (curIdx + 1) % images.length;
+        nextIdRef.current = images[nIdx].id;
       }
     }, cycleInterval * 1000);
     return () => clearInterval(interval);
   }, [cycleEnabled, cycleInterval, backgroundImages.length]);
+
+  // Clear nextIdRef when active changes (transition completed externally via cycleNext)
+  useEffect(() => {
+    if (nextIdRef.current === activeBackgroundImageId) {
+      nextIdRef.current = null;
+    }
+  }, [activeBackgroundImageId]);
 
   if (!active && backgroundImages.length > 0) {
     setActiveBackgroundImageId(backgroundImages[0].id);
