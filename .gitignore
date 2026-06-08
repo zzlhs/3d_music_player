@@ -48,11 +48,6 @@ tsconfig.tsbuildinfo
 # Vite
 vite.config.ts.timestamp-*
 
-# Fonts (large assets downloaded at build time)
-public/fonts/*.ttf
-public/fonts/*.woff2
-!public/fonts/.gitkeep
-
 # Misc
 *.local
 *.bak

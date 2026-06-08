@@ -15,11 +15,27 @@ declare global {
   }
 }
 
+export type FolderPickerError =
+  | 'unsupported'
+  | 'aborted'
+  | 'permission'
+  | 'unknown';
+
 export function useMusicFolder() {
   const [tracks, setTracks] = useState<ScannedTrack[]>([]);
   const [folderName, setFolderName] = useState<string>('');
+  const [error, setError] = useState<FolderPickerError | null>(null);
+
+  const supported = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 
   const pickFolder = useCallback(async () => {
+    setError(null);
+
+    if (!supported) {
+      setError('unsupported');
+      return;
+    }
+
     try {
       const dirHandle = await window.showDirectoryPicker();
       setFolderName(dirHandle.name);
@@ -53,10 +69,19 @@ export function useMusicFolder() {
       found.sort((a, b) => a.title.localeCompare(b.title));
       setTracks(found);
     } catch (err) {
-      if ((err as DOMException).name === 'AbortError') return;
+      const domErr = err as DOMException;
+      if (domErr.name === 'AbortError') {
+        setError('aborted');
+        return;
+      }
+      if (domErr.name === 'SecurityError' || domErr.name === 'NotAllowedError') {
+        setError('permission');
+      } else {
+        setError('unknown');
+      }
       console.error('Folder picker error:', err);
     }
-  }, []);
+  }, [supported]);
 
-  return { tracks, folderName, pickFolder };
+  return { tracks, folderName, error, supported, pickFolder };
 }
